@@ -282,14 +282,12 @@ function updateMesh() {
 		}
 		if (o1 != -1) {
 			splitTrianglePair(i, meshVertices[i], o1, orientedTriangles[o1],
-				o2, orientedTriangles[o2]);
-			// print("got some orientations");
+				o2, orientedTriangles[o2]);			
 		}
 	}
 
 	// TODO: can calculate new vertices added by their indecies: [passNumVertices:numVertices]
-
-	// yield StartCoroutine(yieldWrapper());
+	
 
 	pass++;
 	noise *= DELTA_RAND;		
@@ -326,96 +324,78 @@ function splitTrianglePair(a : int, pa : Vector3, o1 : int, tri_id1 : int, o2 : 
 	var pb : Vector3;
 	var pc : Vector3;
 
-	var points = secondaryPoints(tri_id1, a);
-	b = points[0];
-	c = points[1];
-
-	pb = meshVertices[b];
-	pc = meshVertices[c];
+	// General use vars.
+	var temp_v3 : Vector3;
+	var temp_v_id : int;
+	var p_id : int;
 
 	var p : Vector3 = new Vector3(); // The new point that we're adding.
 
-	if (o1 < 4) {
+	if (o1 < 4 && o2 < 4) {
+		// SPLIT THE FIRST TRIANGLE.
+		var points = secondaryPoints(tri_id1, a);
+		b = points[0];
+		c = points[1];
+
+		pb = meshVertices[b];
+		pc = meshVertices[c];
 		// Make sure pb is the point on the far side of diagonal.
 		if (pb.x == pa.x || pb.z == pa.z) {
-			var temp : Vector3 = pb;
+			temp_v3 = pb;
 			pb = pc;
-			pc = temp;
-		}
+			pc = temp_v3;
 
+			temp_v_id = b;
+			b = c;
+			c = temp_v_id;
+		}
 		// print(pb.x + " " + pa.x + " " + pb.z + " " + pa.z);
 		p.x = (pb.x - pa.x) / 2.0 + pa.x;
 		p.z = (pb.z - pa.z) / 2.0 + pa.z;
 		p.y = (pb.y - pa.y) / 2.0 + pa.y + getRand();
 
-		// print(p.x);
-		// print(p.z);
-		// print(p.y);
-
 		// Remove the old triangle.
-		meshTriangles[tri_id1] = 0;
-		meshTriangles[tri_id1 + 1] = 0;
-		meshTriangles[tri_id1 + 2] = 0;
+		meshTriangles[tri_id1 * 3] = 0;
+		meshTriangles[(tri_id1 * 3) + 1] = 0;
+		meshTriangles[(tri_id1 * 3) + 2] = 0;
 
-		var p_id : int = addVertex(p);
+		p_id = addVertex(p);
 		addTriangle(a, p_id, c);
 		addTriangle(p_id, b, c);
-	}
 
-}
+		// SPLIT THE SECOND TRIANGLE
+		points = secondaryPoints(tri_id2, a);
+		b = points[0];
+		c = points[1];
 
-function splitTriangle(a : int, pa : Vector3, orientation : int, tri_id : int) {
-	// print("Splitting triangle " + tri_id + " from " + v.ToString());
-
-	// Get our points down.
-	var b : int;
-	var c : int;
-	var pb : Vector3;
-	var pc : Vector3;
-
-	if (meshTriangles[tri_id * 3] == a) {
-		b = meshTriangles[tri_id * 3 + 1];
-		c = meshTriangles[tri_id * 3 + 2];
-	}
-	else if (meshTriangles[tri_id * 3 + 1] == a) {
-		b = meshTriangles[tri_id * 3];
-		c = meshTriangles[tri_id * 3 + 2];
-	}
-	else {
-		b = meshTriangles[tri_id * 3];
-		c = meshTriangles[tri_id * 3 + 1];
-	}
-
-	pb = meshVertices[b];
-	pc = meshVertices[c];
-
-	var p : Vector3 = new Vector3(); // The new point that we're adding.
-
-	if (orientation < 4) {
+		pb = meshVertices[b];
+		pc = meshVertices[c];
 		// Make sure pb is the point on the far side of diagonal.
 		if (pb.x == pa.x || pb.z == pa.z) {
-			var temp : Vector3 = pb;
+			temp_v3 = pb;
 			pb = pc;
-			pc = temp;
+			pc = temp_v3;
+
+			temp_v_id = b;
+			b = c;
+			c = temp_v_id;
 		}
 
-		// print(pb.x + " " + pa.x + " " + pb.z + " " + pa.z);
-		p.x = (pb.x - pa.x) / 2.0 + pa.x;
-		p.z = (pb.z - pa.z) / 2.0 + pa.z;
-		p.y = (pb.y - pa.y) / 2.0 + pa.y + getRand();
-		// print(p.x);
-		// print(p.z);
-		// print(p.y);
+		if (o2 < 4) {
+			// Remove the old triangle.
+			meshTriangles[tri_id2 * 3] = 0;
+			meshTriangles[(tri_id2 * 3) + 1] = 0;
+			meshTriangles[(tri_id2 * 3) + 2] = 0;
 
-		// Remove the old triangle.
-		meshTriangles[tri_id] = 0;
-		meshTriangles[tri_id + 1] = 0;
-		meshTriangles[tri_id + 2] = 0;
+			addTriangle(a, c, p_id);
+			addTriangle(p_id, c, b);
+		}
 
-		var p_id : int = addVertex(p);
-		addTriangle(a, p_id, c);
-		addTriangle(p_id, b, c);
 	}
+
+
+	
+
 
 
 }
