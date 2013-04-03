@@ -16,8 +16,8 @@ private var DELTA_UPDATE_TIME : float = 1.0;
 private var MIN_UPDATE_TIME : float = 0.001;
 
 private var LEN : float = 5.0; // Plane length.
-private var MAX_HEIGHT : float = 3.0;
-private var MIN_HEIGHT : float = -3.0;
+private var MAX_HEIGHT : float = 10.0;
+private var MIN_HEIGHT : float = -10.0;
 private var INIT_RAND : float = MAX_HEIGHT * 0.75;
 private var DELTA_RAND : float = 0.6;
 
@@ -49,7 +49,7 @@ function Start() {
 	// testTriangleOrientation();
 
 	rand = new Random();
-	rand.seed = 1;
+	//rand.seed = 1;
 
 	updateTime = INIT_UPDATE_TIME;
 
@@ -255,6 +255,50 @@ function testTriangleOrientation() {
 }
 */
 
+function midpoint(t0 : int, t1 : int) {
+	// Find the four corners of the two input triangles, and return
+	// the midpoint (vector3). Assumes t0 and t1 share an edge.
+	
+	// Get the four corners.
+	var corner : int;
+	var corners = {};
+	var cornerVertices = new Vector3[4];
+	var ci = 0;
+	for (var i = 0; i < 3; i++) {
+		corner = meshTriangles[t0*3 + i];
+		if (corner not in corners) {
+			corners[corner] = meshVertices[corner];
+			cornerVertices[ci++] = meshVertices[corner];
+		}
+
+		corner = meshTriangles[t1*3 + i];
+		if (corner not in corners) {
+			corners[corner] = meshVertices[corner];
+			cornerVertices[ci++] = meshVertices[corner];
+		}
+	}
+
+	// Calculate average coords.
+	var tx : float = 0.0;
+	var ty : float = 0.0;
+	var tz : float = 0.0;
+	for (i = 0; i < 4; i++) {
+		// print("corner " + i + ": " + cornerVertices[i].ToString());
+		tx += cornerVertices[i].x;
+		ty += cornerVertices[i].y;
+		tz += cornerVertices[i].z;
+	}
+
+	tx /= 4.0;
+	ty /= 4.0;
+	tz /= 4.0;
+
+	// y (height) is offset by noise factor.
+	ty += getRand();
+
+	return new Vector3(tx, ty, tz);
+}
+
 function updateMesh() {
 
 	while(true) {
@@ -263,35 +307,186 @@ function updateMesh() {
 	// if (pass < 4)
 	// 	initCorners();
 
-	var passNumVertices = numVertices;
-	for (var i : int = 0; i < passNumVertices; i++) {
-		var orientedTriangles : int[] = vTriangles[i];
+	var i : int;
+	var j : int;
+	var p : int; // Id of new point.
+	var pp : Vector3; // Location of new point.
 
-		var o1 : int = -1;
-		var o2 : int = -1;
-		for (var j : int = 0; j < orientedTriangles.length; j++) {
+	// DIAMOND STEP.
+	var numVerticesAtStart = numVertices;
+	for (i = 0; i < numVerticesAtStart; i++) {
+		/* Do I even need this?
+		// First pass looks for triangles in orientations [0:3]
+		var orientedTriangles : int[] = vTriangles[i];
+		var vo = new int[4]; // Vertex orientations.
+
+		for (j = 0; j < orientedTriangles.length; j++) {
 			//print(meshVertices[i].ToString + " " + orientedTriangles[j]);
 			if (orientedTriangles[j] != -1) {
-				if (o1 == -1)
-					o1 = j;
-				else
-					o2 = j;
-				// splitTriangle(i, meshVertices[i], j, orientedTriangles[j]);
-				// yield StartCoroutine(yieldWrapper());
+				print("Found triangle with orientation " + j +
+					" at point " + meshVertices[i].ToString());
+				vo[j] = 1;
 			}
 		}
-		if (o1 != -1) {
-			splitTrianglePair(i, meshVertices[i], o1, orientedTriangles[o1],
-				o2, orientedTriangles[o2]);			
+
+		if (vo[TRI_0] && vo[TRI_1]) {
+
+			splitTrianglePair(i, meshVertices[i], TRI_0, orientedTriangles[TRI_0],
+				TRI_1, orientedTriangles[TRI_1]);
+			// mesh.RecalculateNormals();	
 		}
+		if (vo[TRI_2] && vo[TRI_3]) {
+			splitTrianglePair(i, meshVertices[i], TRI_2, orientedTriangles[TRI_2],
+				TRI_3, orientedTriangles[TRI_3]);
+			// mesh.RecalculateNormals();	
+		}
+		*/
+		if (vTriangles[i][TRI_0] != -1 && vTriangles[i][TRI_1] != -1) {
+			pp = midpoint(vTriangles[i][TRI_0], vTriangles[i][TRI_1]);
+			p = addVertex(pp);
+			splitTriangle(i, meshVertices[i], TRI_0, vTriangles[i][TRI_0], p);
+			splitTriangle(i, meshVertices[i], TRI_1, vTriangles[i][TRI_1], p);
+			// splitTrianglePair(i, meshVertices[i], TRI_0, vTriangles[i][TRI_0],
+			// 	TRI_1, vTriangles[i][TRI_1]);
+		}
+		if (vTriangles[i][TRI_2] != -1 && vTriangles[i][TRI_3] != -1) {
+			pp = midpoint(vTriangles[i][TRI_2], vTriangles[i][TRI_3]);
+			p = addVertex(pp);
+			splitTriangle(i, meshVertices[i], TRI_2, vTriangles[i][TRI_2], p);
+			splitTriangle(i, meshVertices[i], TRI_3, vTriangles[i][TRI_3], p);
+			// splitTrianglePair(i, meshVertices[i], TRI_2, vTriangles[i][TRI_2],
+			// 	TRI_3, vTriangles[i][TRI_3]);
+		}
+
 	}
 
-	// TODO: can calculate new vertices added by their indecies: [passNumVertices:numVertices]
-	
+	// SQUARE STEP.
+
+	// Need to loop through the vertices added in the diamond step.
+	var numVerticesAdded = numVertices - numVerticesAtStart;
+	// Added vertices always in a square -> sqrt for side length.
+	var n = Mathf.Sqrt(numVerticesAdded);
+	var v1 : int;
+	var v2 : int;
+
+	for (i = 0; i < numVerticesAdded; i++) {
+		v1 = numVerticesAtStart + i;
+
+		// Do the [4, 7] orientation pair.
+		if (i < n*(n-1)) { // Not bottom row.
+			v2 = numVerticesAtStart + (i + n);
+		}
+		else { // Bottom row.
+			v2 = numVerticesAtStart + (i - n*(n-1));
+		}
+		//splitTriangle(v1, meshVertices[v1], TRI_7, vTriangles[v1][TRI_7]);
+
+		// Do the [5, 6] orientation pair.
+		if (i % n == n-1) { // Right edge.
+
+		}
+				
+	}		
 
 	pass++;
 	noise *= DELTA_RAND;		
 	
+	}
+}
+
+function splitTriangle(a : int, pa : Vector3, o : int, tri_id : int, p : int) {
+	// Splits a triangle at a specific point.
+
+	// Get all our triangle points.
+	var points = secondaryPoints(tri_id, a);
+	var b = points[0];
+	var c = points[1];
+	var pb = meshVertices[b];
+	var pc = meshVertices[c];
+
+	// Remove reference to the original triangle.
+	vTriangles[a][o] = -1;
+	
+	// Zero-out the original triangle (removes from mesh, ineffeciently).
+	meshTriangles[tri_id*3] = 0;
+	meshTriangles[tri_id*3 + 1] = 0;
+	meshTriangles[tri_id*3 + 2] = 0;
+
+	if (o == TRI_0 || o == TRI_2) {
+		addTriangle(a, p, c);
+		addTriangle(p, b, c);
+	}
+	else if (o == TRI_1 || o == TRI_3) {
+		addTriangle(a, c, p);
+		addTriangle(p, c, b);
+	}
+	// TODO: I don't think my secondaryPoints is robust enough to know
+	// ordering of a,b,c...
+}
+
+
+function splitTrianglePair(a : int, pa : Vector3, o1 : int, tri_id1 : int, 
+	o2 : int, tri_id2 : int) {
+	// print("Splitting triangle pair...");
+	
+	// Get our points down.
+	var b : int;
+	var c : int;
+	var pb : Vector3;
+	var pc : Vector3;
+
+	// General use vars.
+	// var temp_v3 : Vector3;
+	// var temp_v_id : int;
+	var p_id : int;
+
+	var p : Vector3 = new Vector3(); // The new point that we're adding.
+
+	if (o1 < 4 && o2 < 4) {
+		// Not sure if this should be the first thing I do, but
+		// need to remove the references to these triangles-to-split
+		// from the source point (a).
+		vTriangles[a][o1] = -1;
+		vTriangles[a][o2] = -1;
+
+		// SPLIT THE FIRST TRIANGLE.
+
+		var points = secondaryPoints(tri_id1, a);
+		b = points[0];
+		c = points[1];
+		pb = meshVertices[b];
+		pc = meshVertices[c];
+
+		// print(pb.x + " " + pa.x + " " + pb.z + " " + pa.z);
+		p.x = (pb.x - pa.x) / 2.0 + pa.x;
+		p.z = (pb.z - pa.z) / 2.0 + pa.z;
+		p.y = (pb.y - pa.y) / 2.0 + pa.y + getRand();
+
+		// Remove the old triangle.
+		meshTriangles[tri_id1 * 3] = 0;
+		meshTriangles[(tri_id1 * 3) + 1] = 0;
+		meshTriangles[(tri_id1 * 3) + 2] = 0;
+
+		p_id = addVertex(p);
+		addTriangle(a, p_id, c);
+		addTriangle(p_id, b, c);
+
+		// SPLIT THE SECOND TRIANGLE
+		points = secondaryPoints(tri_id2, a);
+		b = points[0];
+		c = points[1];
+		pb = meshVertices[b];
+		pc = meshVertices[c];
+
+		if (o2 < 4) {
+			// Remove the old triangle.
+			meshTriangles[tri_id2 * 3] = 0;
+			meshTriangles[(tri_id2 * 3) + 1] = 0;
+			meshTriangles[(tri_id2 * 3) + 2] = 0;
+
+			addTriangle(a, c, p_id);
+			addTriangle(p_id, c, b);
+		}
 	}
 }
 
@@ -312,92 +507,18 @@ function secondaryPoints(tri_id : int, primary : int) {
 		b = meshTriangles[tri_id * 3];
 		c = meshTriangles[tri_id * 3 + 1];
 	}
-	return [b, c];
-}
 
-function splitTrianglePair(a : int, pa : Vector3, o1 : int, tri_id1 : int, o2 : int, tri_id2 : int) {
-	// print("Splitting triangle pair...");
-	
-	// Get our points down.
-	var b : int;
-	var c : int;
-	var pb : Vector3;
-	var pc : Vector3;
-
-	// General use vars.
-	var temp_v3 : Vector3;
-	var temp_v_id : int;
-	var p_id : int;
-
-	var p : Vector3 = new Vector3(); // The new point that we're adding.
-
-	if (o1 < 4 && o2 < 4) {
-		// SPLIT THE FIRST TRIANGLE.
-		var points = secondaryPoints(tri_id1, a);
-		b = points[0];
-		c = points[1];
-
-		pb = meshVertices[b];
-		pc = meshVertices[c];
-		// Make sure pb is the point on the far side of diagonal.
-		if (pb.x == pa.x || pb.z == pa.z) {
-			temp_v3 = pb;
-			pb = pc;
-			pc = temp_v3;
-
-			temp_v_id = b;
-			b = c;
-			c = temp_v_id;
-		}
-		// print(pb.x + " " + pa.x + " " + pb.z + " " + pa.z);
-		p.x = (pb.x - pa.x) / 2.0 + pa.x;
-		p.z = (pb.z - pa.z) / 2.0 + pa.z;
-		p.y = (pb.y - pa.y) / 2.0 + pa.y + getRand();
-
-		// Remove the old triangle.
-		meshTriangles[tri_id1 * 3] = 0;
-		meshTriangles[(tri_id1 * 3) + 1] = 0;
-		meshTriangles[(tri_id1 * 3) + 2] = 0;
-
-		p_id = addVertex(p);
-		addTriangle(a, p_id, c);
-		addTriangle(p_id, b, c);
-
-		// SPLIT THE SECOND TRIANGLE
-		points = secondaryPoints(tri_id2, a);
-		b = points[0];
-		c = points[1];
-
-		pb = meshVertices[b];
-		pc = meshVertices[c];
-		// Make sure pb is the point on the far side of diagonal.
-		if (pb.x == pa.x || pb.z == pa.z) {
-			temp_v3 = pb;
-			pb = pc;
-			pc = temp_v3;
-
-			temp_v_id = b;
-			b = c;
-			c = temp_v_id;
-		}
-
-		if (o2 < 4) {
-			// Remove the old triangle.
-			meshTriangles[tri_id2 * 3] = 0;
-			meshTriangles[(tri_id2 * 3) + 1] = 0;
-			meshTriangles[(tri_id2 * 3) + 2] = 0;
-
-			addTriangle(a, c, p_id);
-			addTriangle(p_id, c, b);
-		}
-
+	// Make sure pb is the point on the far side of diagonal.
+	var pa : Vector3 = meshVertices[a];
+	var pb : Vector3 = meshVertices[b];
+	var pc : Vector3 = meshVertices[c];
+	if (pb.x == pa.x || pb.z == pa.z) {
+		var temp_v_id = b;
+		b = c;
+		c = temp_v_id;
 	}
 
-
-	
-
-
-
+	return [b, c];
 }
 
 function yieldWrapper() {
@@ -425,5 +546,6 @@ function initCorners() {
 
 function getRand():float {
 	return rand.Range(0, noise) - (noise / 2.0);
+	// return rand.Range(0, noise); // Only positive growth.
 	// return rand.Range(MIN_HEIGHT, MAX_HEIGHT);
 }
