@@ -11,7 +11,7 @@ private var TRI_5 : int = 5;
 private var TRI_6 : int = 6;
 private var TRI_7 : int = 7;
 
-private var INIT_UPDATE_TIME : float = 1.5;
+private var INIT_UPDATE_TIME : float = 0.0;
 private var DELTA_UPDATE_TIME : float = 1.0;
 private var MIN_UPDATE_TIME : float = 0.001;
 
@@ -49,7 +49,7 @@ function Start() {
 	// testTriangleOrientation();
 
 	rand = new Random();
-	//rand.seed = 1;
+	rand.seed = 1;
 
 	updateTime = INIT_UPDATE_TIME;
 
@@ -73,17 +73,22 @@ function initMesh() {
 	meshVertices = new Vector3[INIT_VERTICES_LEN];
 	vTriangles = new Dictionary.<int, int[]>();
 	numVertices = 0;
-	addVertex(Vector3(-LEN, 0, -LEN));
+	// addVertex(Vector3(-LEN, 0, -LEN));
+	// addVertex(Vector3(-LEN, 0, LEN));
+	// addVertex(Vector3(LEN, 0, LEN));
+	// addVertex(Vector3(LEN, 0, -LEN));
 	addVertex(Vector3(-LEN, 0, LEN));
 	addVertex(Vector3(LEN, 0, LEN));
+	addVertex(Vector3(-LEN, 0, -LEN));
 	addVertex(Vector3(LEN, 0, -LEN));
+
 	mesh.vertices = meshVertices;
 
 	// Initial two-triangle composition for the mesh.
 	meshTriangles = new int[INIT_NUM_TRI_VERTICES];
 	numTriVertices = 0;
-	addTriangle(0, 1, 2);
-	addTriangle(2, 3, 0);
+	addTriangle(0, 1, 3);
+	addTriangle(0, 3, 2);
 	mesh.triangles = meshTriangles;
 
 	mesh.RecalculateNormals();
@@ -255,10 +260,53 @@ function testTriangleOrientation() {
 }
 */
 
-function midpoint(t0 : int, t1 : int) {
+function midpoint1(a : int, t : int) {
+	// a is the home vertex, and the midpoint will be on the opposite edge.
+	// print("single triangle midpoint");
+
+	var points = secondaryPoints(t, a);
+	var b = points[0];
+	var c = points[1];
+	var pa = meshVertices[a];
+	var pb = meshVertices[b];
+	var pc = meshVertices[c];
+	// print("Points in midpoint1: ");
+	// print(pa.ToString());
+	// print(pb.ToString());
+	// print(pc.ToString());
+
+	// Calculate average coords.
+	var tx : float = (pb.x + pc.x) / 2.0;
+	var ty : float = (pb.y + pc.y + pa.y) / 3.0; // point a matters for height avg, just not pos.
+	var tz : float = (pb.z + pc.z) / 2.0;
+
+	// y (height) is offset by noise factor.
+	ty += getRand();
+
+	// print("New point from midpoint1: " + (new Vector3(tx, ty, tz)).ToString());
+	return new Vector3(tx, ty, tz);
+
+}
+
+function printTriangle(t : int) {
+	// Debugging helper.
+	var v = new Vector3[3];
+	for (var i = 0; i < 3; i++) {
+		v[i] = meshVertices[meshTriangles[t*3 + i]];
+	}
+	print("Triangle " + t + " " + v[0].ToString() + " " +
+		v[1].ToString() + " " + v[2].ToString());
+}
+
+function midpoint2(t0 : int, t1 : int) {
 	// Find the four corners of the two input triangles, and return
 	// the midpoint (vector3). Assumes t0 and t1 share an edge.
 	
+	// Debug.
+	// print("midpoint2 call: t0: " + t0 + " t1: " + t1);
+	// printTriangle(t0);
+	// printTriangle(t1);
+
 	// Get the four corners.
 	var corner : int;
 	var corners = {};
@@ -267,12 +315,16 @@ function midpoint(t0 : int, t1 : int) {
 	for (var i = 0; i < 3; i++) {
 		corner = meshTriangles[t0*3 + i];
 		if (corner not in corners) {
+			// print("Adding corner from t0: " + 
+			// 	(meshTriangles[corner]).ToString());
 			corners[corner] = meshVertices[corner];
 			cornerVertices[ci++] = meshVertices[corner];
 		}
 
 		corner = meshTriangles[t1*3 + i];
 		if (corner not in corners) {
+			// print("Adding corner from t1: " + 
+			// 	(meshTriangles[corner]).ToString());
 			corners[corner] = meshVertices[corner];
 			cornerVertices[ci++] = meshVertices[corner];
 		}
@@ -315,51 +367,21 @@ function updateMesh() {
 	// DIAMOND STEP.
 	var numVerticesAtStart = numVertices;
 	for (i = 0; i < numVerticesAtStart; i++) {
-		/* Do I even need this?
-		// First pass looks for triangles in orientations [0:3]
-		var orientedTriangles : int[] = vTriangles[i];
-		var vo = new int[4]; // Vertex orientations.
-
-		for (j = 0; j < orientedTriangles.length; j++) {
-			//print(meshVertices[i].ToString + " " + orientedTriangles[j]);
-			if (orientedTriangles[j] != -1) {
-				print("Found triangle with orientation " + j +
-					" at point " + meshVertices[i].ToString());
-				vo[j] = 1;
-			}
-		}
-
-		if (vo[TRI_0] && vo[TRI_1]) {
-
-			splitTrianglePair(i, meshVertices[i], TRI_0, orientedTriangles[TRI_0],
-				TRI_1, orientedTriangles[TRI_1]);
-			// mesh.RecalculateNormals();	
-		}
-		if (vo[TRI_2] && vo[TRI_3]) {
-			splitTrianglePair(i, meshVertices[i], TRI_2, orientedTriangles[TRI_2],
-				TRI_3, orientedTriangles[TRI_3]);
-			// mesh.RecalculateNormals();	
-		}
-		*/
 		if (vTriangles[i][TRI_0] != -1 && vTriangles[i][TRI_1] != -1) {
-			pp = midpoint(vTriangles[i][TRI_0], vTriangles[i][TRI_1]);
+			pp = midpoint2(vTriangles[i][TRI_0], vTriangles[i][TRI_1]);
 			p = addVertex(pp);
 			splitTriangle(i, meshVertices[i], TRI_0, vTriangles[i][TRI_0], p);
 			splitTriangle(i, meshVertices[i], TRI_1, vTriangles[i][TRI_1], p);
-			// splitTrianglePair(i, meshVertices[i], TRI_0, vTriangles[i][TRI_0],
-			// 	TRI_1, vTriangles[i][TRI_1]);
+			yield StartCoroutine(yieldWrapper());
 		}
 		if (vTriangles[i][TRI_2] != -1 && vTriangles[i][TRI_3] != -1) {
-			pp = midpoint(vTriangles[i][TRI_2], vTriangles[i][TRI_3]);
+			pp = midpoint2(vTriangles[i][TRI_2], vTriangles[i][TRI_3]);
 			p = addVertex(pp);
 			splitTriangle(i, meshVertices[i], TRI_2, vTriangles[i][TRI_2], p);
 			splitTriangle(i, meshVertices[i], TRI_3, vTriangles[i][TRI_3], p);
-			// splitTrianglePair(i, meshVertices[i], TRI_2, vTriangles[i][TRI_2],
-			// 	TRI_3, vTriangles[i][TRI_3]);
+			yield StartCoroutine(yieldWrapper());
 		}
-
 	}
-
 	// SQUARE STEP.
 
 	// Need to loop through the vertices added in the diamond step.
@@ -369,29 +391,187 @@ function updateMesh() {
 	var v1 : int;
 	var v2 : int;
 
+	// If we wrap around, a second point will be added.
+	var p2 : int;
+	var pp2 : Vector3;
+
 	for (i = 0; i < numVerticesAdded; i++) {
 		v1 = numVerticesAtStart + i;
 
 		// Do the [4, 7] orientation pair.
 		if (i < n*(n-1)) { // Not bottom row.
 			v2 = numVerticesAtStart + (i + n);
+			pp = midpoint2(vTriangles[v1][TRI_7], vTriangles[v2][TRI_4]);
+			p = addVertex(pp);
+			splitTriangle(v1, meshVertices[v1], TRI_7, vTriangles[v1][TRI_7], p);
+			splitTriangle(v2, meshVertices[v2], TRI_4, vTriangles[v2][TRI_4], p);
+			yield StartCoroutine(yieldWrapper());
 		}
-		else { // Bottom row.
+		else { // Bottom row -> have to wrap around.
 			v2 = numVerticesAtStart + (i - n*(n-1));
+			pp = midpoint1(v1, vTriangles[v1][TRI_7]);
+			p = addVertex(pp);
+			splitTriangle(v1, meshVertices[v1], TRI_7, vTriangles[v1][TRI_7], p);
+			pp2 = midpoint1(v2, vTriangles[v2][TRI_4]);
+			p2 = addVertex(pp2);
+			splitTriangle(v2, meshVertices[v2], TRI_4, vTriangles[v2][TRI_4], p2);
+			yield StartCoroutine(yieldWrapper());
 		}
-		//splitTriangle(v1, meshVertices[v1], TRI_7, vTriangles[v1][TRI_7]);
+
 
 		// Do the [5, 6] orientation pair.
-		if (i % n == n-1) { // Right edge.
-
+		if (i % n != n-1) { // Not right edge.
+			v2 = numVerticesAtStart + (i + 1);
+			pp = midpoint2(vTriangles[v1][TRI_6], vTriangles[v2][TRI_5]);
+			p = addVertex(pp);
+			splitTriangle(v1, meshVertices[v1], TRI_6, vTriangles[v1][TRI_6], p);
+			splitTriangle(v2, meshVertices[v2], TRI_5, vTriangles[v2][TRI_5], p);
+			yield StartCoroutine(yieldWrapper());
+		}
+		else { // Right edge -> have to wrap around to get the left-edge triangle.
+			v2 = numVerticesAtStart + (i - (n-1));
+			pp = midpoint1(v1, vTriangles[v1][TRI_6]);
+			p = addVertex(pp);
+			splitTriangle(v1, meshVertices[v1], TRI_6, vTriangles[v1][TRI_6], p);
+			pp2 = midpoint1(v2, vTriangles[v2][TRI_5]);
+			p2 = addVertex(pp2);
+			splitTriangle(v2, meshVertices[v2], TRI_5, vTriangles[v2][TRI_5], p2);	
+			yield StartCoroutine(yieldWrapper());
 		}
 				
-	}		
+	}
+
+	// After every round we need to rebuild, to maintain the ordering
+	// of the vertices.
+	rebuildMesh();
+	print("REBUILD COMPLETE!");
+	mesh.RecalculateNormals();
+	yield StartCoroutine(yieldWrapper());
+	yield StartCoroutine(yieldWrapper());
+
+	// Debuggin.
+	if (pass == 4) {
+		print("exiting after pass " + pass);
+		return;
+	}
+
 
 	pass++;
 	noise *= DELTA_RAND;		
 	
 	}
+}
+
+
+function printArrayVec3(a : Vector3[]) {
+	for (var i = 0; i < a.length; i++) {
+		print(a[i].ToString());
+	}
+}
+
+function compareVector3(a : Vector3, b : Vector3) {
+	if (a.x == b.x && a.z == b.z)
+		return 0;
+	
+	if (a.z > b.z)
+		return -1;
+	if (a.z < b.z)
+		return 1;
+
+	if (a.x < b.x)
+		return -1;
+	else
+		return 1;
+}
+
+function mergesortVector3(a : Vector3[]) : void {
+	// print("TESTING MERGESORT");
+
+	if (a.length == 1)
+		return;
+
+	var halfLen = a.length / 2;
+
+	var sub0 : Vector3[] = new Vector3[halfLen];
+	for (var i = 0; i < halfLen; i++) {
+		sub0[i] = a[i];
+	}
+	mergesortVector3(sub0);
+
+	var sub1 : Vector3[] = new Vector3[a.length - halfLen];
+	for (i = halfLen; i < a.length; i++) {
+		sub1[i - halfLen] = a[i];
+	}
+	mergesortVector3(sub1);
+
+	// Now combine the two sorted sub lists into a.
+	i = 0;
+	var j = 0;
+	var k = 0;
+	var res : int;
+	while (j < sub0.length || k < sub1.length) {
+		// If one sublist is empty, default to the other.
+		if (j == sub0.length) {
+			a[i++] = sub1[k++];
+			continue;
+		}
+		else if (k == sub1.length) {
+			a[i++] = sub0[j++];
+			continue;			
+		}
+
+		// Otherwise, find the max of the next two.
+		res = compareVector3(sub0[j], sub1[k]);
+		// print("compared " + sub0[j].ToString() + " to " + 
+		// 	sub1[k].ToString() + " result: " + res);
+
+		if (res < 0) {
+			a[i++] = sub0[j++];
+		}
+		else if (res > 0) {
+			a[i++] = sub1[k++];
+		}
+	}
+
+}
+
+function rebuildMesh() {
+	// points to old vertex id
+	var d1 : Dictionary.<Vector3, int> = new Dictionary.<Vector3, int>();
+	
+	var sortedVertices : Vector3[] = new Vector3[numVertices];
+	for (var i = 0; i < numVertices; i++) {
+		sortedVertices[i] = meshVertices[i];
+		d1[meshVertices[i]] = i;
+	}
+
+	mergesortVector3(sortedVertices);
+	mesh.vertices = sortedVertices;
+
+	// points to new vertex id (from sorted)
+	var d2 : Dictionary.<Vector3, int> = new Dictionary.<Vector3, int>();
+	for (i = 0; i < numVertices; i++) {
+		d2[sortedVertices[i]] = i;
+	}
+
+	// Rebuild triangles.
+	var v : Vector3;
+	for (i = 0; i < numTriVertices; i++) {
+		v = meshVertices[meshTriangles[i]];
+		meshTriangles[i] = d2[v];
+	}
+	mesh.triangles = meshTriangles;
+
+	// Rebuild orientation lists.
+	var tempvTriangles = new Dictionary.<int, int[]>();
+	var old_index : int;
+	for (i = 0; i < numVertices; i++) {
+		old_index = d1[sortedVertices[i]];
+		tempvTriangles[i] = vTriangles[old_index];
+	}
+	vTriangles = tempvTriangles;
+
+	meshVertices = sortedVertices;
 }
 
 function splitTriangle(a : int, pa : Vector3, o : int, tri_id : int, p : int) {
@@ -403,6 +583,9 @@ function splitTriangle(a : int, pa : Vector3, o : int, tri_id : int, p : int) {
 	var c = points[1];
 	var pb = meshVertices[b];
 	var pc = meshVertices[c];
+
+	// print("Splitting triangle:\n" + meshVertices[a].ToString() + "\n" + 
+	// 	pb.ToString() + "\n" + pc.ToString());
 
 	// Remove reference to the original triangle.
 	vTriangles[a][o] = -1;
@@ -420,74 +603,18 @@ function splitTriangle(a : int, pa : Vector3, o : int, tri_id : int, p : int) {
 		addTriangle(a, c, p);
 		addTriangle(p, c, b);
 	}
+	else if (o == TRI_4 || o == TRI_5 || o == TRI_6 || o == TRI_7) {
+		addTriangle(a, b, p);
+		addTriangle(a, p, c);
+	}
+	else {
+		print("ERROR: Couldn't add the triangle...");
+	}
+
+	mesh.RecalculateNormals();
+
 	// TODO: I don't think my secondaryPoints is robust enough to know
 	// ordering of a,b,c...
-}
-
-
-function splitTrianglePair(a : int, pa : Vector3, o1 : int, tri_id1 : int, 
-	o2 : int, tri_id2 : int) {
-	// print("Splitting triangle pair...");
-	
-	// Get our points down.
-	var b : int;
-	var c : int;
-	var pb : Vector3;
-	var pc : Vector3;
-
-	// General use vars.
-	// var temp_v3 : Vector3;
-	// var temp_v_id : int;
-	var p_id : int;
-
-	var p : Vector3 = new Vector3(); // The new point that we're adding.
-
-	if (o1 < 4 && o2 < 4) {
-		// Not sure if this should be the first thing I do, but
-		// need to remove the references to these triangles-to-split
-		// from the source point (a).
-		vTriangles[a][o1] = -1;
-		vTriangles[a][o2] = -1;
-
-		// SPLIT THE FIRST TRIANGLE.
-
-		var points = secondaryPoints(tri_id1, a);
-		b = points[0];
-		c = points[1];
-		pb = meshVertices[b];
-		pc = meshVertices[c];
-
-		// print(pb.x + " " + pa.x + " " + pb.z + " " + pa.z);
-		p.x = (pb.x - pa.x) / 2.0 + pa.x;
-		p.z = (pb.z - pa.z) / 2.0 + pa.z;
-		p.y = (pb.y - pa.y) / 2.0 + pa.y + getRand();
-
-		// Remove the old triangle.
-		meshTriangles[tri_id1 * 3] = 0;
-		meshTriangles[(tri_id1 * 3) + 1] = 0;
-		meshTriangles[(tri_id1 * 3) + 2] = 0;
-
-		p_id = addVertex(p);
-		addTriangle(a, p_id, c);
-		addTriangle(p_id, b, c);
-
-		// SPLIT THE SECOND TRIANGLE
-		points = secondaryPoints(tri_id2, a);
-		b = points[0];
-		c = points[1];
-		pb = meshVertices[b];
-		pc = meshVertices[c];
-
-		if (o2 < 4) {
-			// Remove the old triangle.
-			meshTriangles[tri_id2 * 3] = 0;
-			meshTriangles[(tri_id2 * 3) + 1] = 0;
-			meshTriangles[(tri_id2 * 3) + 2] = 0;
-
-			addTriangle(a, c, p_id);
-			addTriangle(p_id, c, b);
-		}
-	}
 }
 
 function secondaryPoints(tri_id : int, primary : int) {
@@ -512,10 +639,51 @@ function secondaryPoints(tri_id : int, primary : int) {
 	var pa : Vector3 = meshVertices[a];
 	var pb : Vector3 = meshVertices[b];
 	var pc : Vector3 = meshVertices[c];
+
+	var temp_v_id : int;
+	// Orientations [0:3]
 	if (pb.x == pa.x || pb.z == pa.z) {
-		var temp_v_id = b;
+		temp_v_id = b;
 		b = c;
 		c = temp_v_id;
+	}
+	else if (pc.x == pa.x || pc.z == pa.z) {
+		;
+	}
+	// Orientations [4:7]
+	else {
+		if (pb.x == pc.x) {
+			if (pb.x < pa.x) { // 5
+				if (pb.z > pc.z) {
+					temp_v_id = b;
+					b = c;
+					c = temp_v_id;
+				}
+			}
+			else if (pb.x > pa.x) { // 6
+				if (pb.z < pc.z) {
+					temp_v_id = b;
+					b = c;
+					c = temp_v_id;
+				}
+			}
+		}
+		else if (pb.z == pc.z) { // 4, 7
+			if (pb.z > pa.z) { // 4
+				if (pb.x > pc.x) {
+					temp_v_id = b;
+					b = c;
+					c = temp_v_id;	
+				}
+			}
+			else if (pb.z < pa.z) { // 7
+				if (pb.x < pc.x) {
+					temp_v_id = b;
+					b = c;
+					c = temp_v_id;
+				}
+			}
+		}
 	}
 
 	return [b, c];
