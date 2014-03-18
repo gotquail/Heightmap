@@ -1,1 +1,1 @@
-This is a project I did in Unity. It's a mesh that I subdivide in a fractal manner to create a random height map. I use the Diamond-Square algorithm.
+This is the code for a Unity mesh that will slowly turn it into a fractal heightmap. It uses the diamond-square algorithm. I never had the time to polish it, sorry!
